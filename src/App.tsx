@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { EditorView } from '@codemirror/view'
 import { MarkdownEditor } from './components/MarkdownEditor'
 import { PagedPreview } from './components/PagedPreview'
 import { DocEditor } from './components/DocEditor'
 import { SettingsPanel } from './components/SettingsPanel'
 import { PromptModal } from './components/PromptModal'
+import { AiPanel } from './components/AiPanel'
+import { AiReviewModal } from './components/AiReviewModal'
+import { proposalBase, proposalHunks, type AiProposal } from './lib/ai'
+import { applyHunks } from './lib/diff'
 import { Home } from './components/Home'
 import { Icon } from './components/Icons'
 import { PaintView } from './paint/PaintView'
@@ -57,6 +62,10 @@ export default function App() {
   const [docKey, setDocKey] = useState(0)
   const [showSettings, setShowSettings] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
+  const [showAi, setShowAi] = useState(false)
+  const [aiProposal, setAiProposal] = useState<AiProposal | null>(null)
+  const [selectionChars, setSelectionChars] = useState(0)
+  const mdViewRef = useRef<EditorView | null>(null)
   const [exporting, setExporting] = useState(false)
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null)
   const filePathRef = useRef<string | null>(null) // chemin natif (application de bureau)
@@ -200,6 +209,53 @@ export default function App() {
     return () => clearTimeout(t)
   }, [markdown, project, mode])
 
+  // -------------------- Assistant IA --------------------
+  // Sélection courante de l'éditeur Markdown (base des actions « sélection »)
+  const getAiSelection = useCallback(() => {
+    const view = mdViewRef.current
+    if (mode !== 'markdown' || !view) return null
+    const { from, to } = view.state.selection.main
+    if (from === to) return null
+    return { from, to, text: view.state.sliceDoc(from, to) }
+  }, [mode])
+
+  const getAiMarkdown = useCallback(() => markdown, [markdown])
+
+  // Hunks présentés dans la revue accepter/refuser
+  const aiHunks = useMemo(() => (aiProposal ? proposalHunks(aiProposal) : []), [aiProposal])
+
+  // Application des hunks acceptés — avec garde anti-écrasement si le
+  // document ou la sélection a changé pendant l'appel au modèle.
+  const applyAiProposal = useCallback(
+    (accepted: boolean[]) => {
+      const proposal = aiProposal
+      if (!proposal) return
+      const result = applyHunks(proposalBase(proposal), aiHunks, accepted)
+      if (proposal.kind === 'selection') {
+        const view = mdViewRef.current
+        if (!view || view.state.sliceDoc(proposal.from, proposal.to) !== proposal.original) {
+          window.alert('La sélection a changé depuis la demande : proposition abandonnée.')
+        } else {
+          view.dispatch({
+            changes: { from: proposal.from, to: proposal.to, insert: result },
+          })
+          view.focus()
+        }
+      } else if (markdown !== proposal.baseline) {
+        window.alert("Le document a été modifié pendant l'analyse : proposition abandonnée.")
+      } else if (mode === 'markdown' && mdViewRef.current) {
+        // Passer par CodeMirror préserve l'historique d'annulation (Ctrl+Z)
+        const view = mdViewRef.current
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: result } })
+      } else {
+        setMarkdown(result)
+        setDocKey((k) => k + 1)
+      }
+      setAiProposal(null)
+    },
+    [aiProposal, aiHunks, markdown, mode]
+  )
+
   const goHome = useCallback(() => {
     flushRef.current() // ne rien perdre en quittant l'éditeur
     setProject(null)
@@ -333,7 +389,16 @@ export default function App() {
       if (view === 'editor') switchMode('doc')
     },
     settings: () => {
-      if (view === 'editor') setShowSettings((s) => !s)
+      if (view === 'editor') {
+        setShowAi(false)
+        setShowSettings((s) => !s)
+      }
+    },
+    ai: () => {
+      if (view === 'editor') {
+        setShowSettings(false)
+        setShowAi((s) => !s)
+      }
     },
     prompt: () => setShowPrompt(true),
   }
@@ -482,11 +547,30 @@ export default function App() {
               Aperçu fidèle
             </button>
           )}
-          <button className="btn btn-accent" onClick={() => setShowPrompt(true)}>
-            <Icon name="sparkles" />
+          {isDesktop && (
+            <button
+              className={showAi ? 'btn btn-accent' : 'btn'}
+              title="Corriger, reformuler ou confier le document à l'agent IA (Ctrl+Maj+A)"
+              onClick={() => {
+                setShowSettings(false)
+                setShowAi((s) => !s)
+              }}
+            >
+              <Icon name="sparkles" />
+              Assistant IA
+            </button>
+          )}
+          <button className="btn" onClick={() => setShowPrompt(true)}>
+            <Icon name="copy" />
             Prompt IA
           </button>
-          <button className="btn" onClick={() => setShowSettings((s) => !s)}>
+          <button
+            className="btn"
+            onClick={() => {
+              setShowAi(false)
+              setShowSettings((s) => !s)
+            }}
+          >
             <Icon name="sliders" />
             Mise en page
           </button>
@@ -511,7 +595,13 @@ export default function App() {
                 </span>
               </div>
               <div className="pane-body">
-                <MarkdownEditor value={markdown} onChange={setMarkdown} dark={theme === 'dark'} />
+                <MarkdownEditor
+                  value={markdown}
+                  onChange={setMarkdown}
+                  dark={theme === 'dark'}
+                  viewRef={mdViewRef}
+                  onSelectionChange={setSelectionChars}
+                />
               </div>
             </div>
             <div className="pane pane-preview">
@@ -591,6 +681,16 @@ export default function App() {
             onClose={() => setShowSettings(false)}
           />
         )}
+        {showAi && (
+          <AiPanel
+            mode={mode}
+            selectionChars={selectionChars}
+            getSelection={getAiSelection}
+            getMarkdown={getAiMarkdown}
+            onProposal={setAiProposal}
+            onClose={() => setShowAi(false)}
+          />
+        )}
       </main>
 
       <footer className="statusbar">
@@ -618,6 +718,15 @@ export default function App() {
       </footer>
 
       {showPrompt && <PromptModal onClose={() => setShowPrompt(false)} />}
+      {aiProposal && (
+        <AiReviewModal
+          hunks={aiHunks}
+          scope={aiProposal.kind === 'selection' ? 'sélection' : 'document entier'}
+          baselineLineCount={proposalBase(aiProposal).split('\n').length}
+          onApply={applyAiProposal}
+          onClose={() => setAiProposal(null)}
+        />
+      )}
       {exporting && (
         <div className="export-overlay">
           <div className="export-box">

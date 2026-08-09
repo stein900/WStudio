@@ -42,6 +42,7 @@
     }
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/search": "^6.7.1",
     "@codemirror/state": "^6.7.1",
@@ -59,6 +60,7 @@
     "katex": "^0.18.2",
     "markdown-it": "^15.0.0",
     "mermaid": "^11.16.1",
+    "openai": "^7.4.0",
     "pagedjs": "^0.4.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

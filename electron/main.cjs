@@ -4,6 +4,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { registerAiIpc } = require('./ai.cjs')
 
 // Protocole interne servant les images des projets à l'éditeur (une page http
 // en dev ne peut pas charger de file:// ; secure:true évite le contenu mixte).
@@ -177,6 +178,7 @@ function buildMenu() {
         { label: 'Mode Document', accelerator: 'CmdOrCtrl+2', click: () => sendMenu('mode-doc') },
         { type: 'separator' },
         { label: 'Mise en page…', accelerator: 'CmdOrCtrl+,', click: () => sendMenu('settings') },
+        { label: 'Assistant IA…', accelerator: 'CmdOrCtrl+Shift+A', click: () => sendMenu('ai') },
         { label: 'Prompt IA…', click: () => sendMenu('prompt') },
         { type: 'separator' },
         { label: 'Zoom avant', role: 'zoomIn' },
@@ -529,6 +531,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
+    registerAiIpc()
     buildMenu()
     createWindow()
     app.on('activate', () => {
