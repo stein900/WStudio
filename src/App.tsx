@@ -6,6 +6,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { PromptModal } from './components/PromptModal'
 import { Home } from './components/Home'
 import { Icon } from './components/Icons'
+import { PaintView } from './paint/PaintView'
 import { desktop, isDesktop, type ProjectData } from './lib/desktop'
 import { exportToPdf, type PagedAnchors } from './lib/exportPdf'
 import { DEFAULT_DOC } from './lib/defaultDoc'
@@ -67,7 +68,7 @@ export default function App() {
     path: string
     temporary?: boolean
   } | null>(null)
-  const [view, setView] = useState<'home' | 'editor'>(isDesktop ? 'home' : 'editor')
+  const [view, setView] = useState<'home' | 'editor' | 'paint'>(isDesktop ? 'home' : 'editor')
   const [createSignal, setCreateSignal] = useState(0)
 
   // Thème clair/sombre : appliqué sur <html> (les feuilles de style s'y
@@ -343,6 +344,10 @@ export default function App() {
       document.title = 'WStudio'
       return
     }
+    if (view === 'paint') {
+      document.title = 'Paint — WStudio'
+      return
+    }
     const name =
       project?.name ??
       (filePath ? filePath.replace(/^.*[\\/]/, '') : documentTitle(markdown))
@@ -354,6 +359,10 @@ export default function App() {
     [markdown]
   )
 
+  if (view === 'paint') {
+    return <PaintView onClose={() => setView('home')} />
+  }
+
   if (isDesktop && view === 'home') {
     return (
       <Home
@@ -361,6 +370,7 @@ export default function App() {
         createSignal={createSignal}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenPaint={() => setView('paint')}
       />
     )
   }
