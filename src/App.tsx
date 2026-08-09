@@ -8,6 +8,7 @@ import { Home } from './components/Home'
 import { Icon } from './components/Icons'
 import { PaintView } from './paint/PaintView'
 import { desktop, isDesktop, type ProjectData } from './lib/desktop'
+import logoUrl from './assets/wstudio-logo.png'
 import { exportToPdf, type PagedAnchors } from './lib/exportPdf'
 import { DEFAULT_DOC } from './lib/defaultDoc'
 import { DEFAULT_SETTINGS, type EditorMode, type PageSettings } from './types'
@@ -380,7 +381,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark">
-            <Icon name="file-text" size={16} strokeWidth={2.1} />
+            <img src={logoUrl} alt="" draggable={false} />
           </div>
           <div>
             <div className="brand-name">
