@@ -66,7 +66,14 @@ function createWindow() {
     // le relais dès le premier rendu.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#f5f5f7',
     title: 'WStudio',
-    icon: path.join(__dirname, '..', 'buildResources', 'icon.png'),
+    // .ico sur Windows : contient les tailles 16→256, la barre des tâches et la
+    // barre de titre piochent la bonne au lieu de redimensionner le PNG.
+    icon: path.join(
+      __dirname,
+      '..',
+      'buildResources',
+      process.platform === 'win32' ? 'icon.ico' : 'icon.png'
+    ),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

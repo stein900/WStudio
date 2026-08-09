@@ -8,6 +8,8 @@ interface Props {
   createSignal: number
   theme: 'light' | 'dark'
   onToggleTheme: () => void
+  /** Ouvre le module Paint (dessins & schémas). */
+  onOpenPaint: () => void
 }
 
 function relativeDate(ms: number): string {
@@ -22,7 +24,7 @@ function relativeDate(ms: number): string {
   return new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-export function Home({ onOpenProject, createSignal, theme, onToggleTheme }: Props) {
+export function Home({ onOpenProject, createSignal, theme, onToggleTheme, onOpenPaint }: Props) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
@@ -140,6 +142,14 @@ export function Home({ onOpenProject, createSignal, theme, onToggleTheme }: Prop
             >
               <Icon name="clock" />
               Projet temporaire
+            </button>
+            <button
+              className="btn home-btn"
+              onClick={onOpenPaint}
+              title="Dessins et schémas à main levée : formes, flèches, lissage automatique du trait, export PNG"
+            >
+              <Icon name="pencil" />
+              Paint
             </button>
           </div>
         </header>
