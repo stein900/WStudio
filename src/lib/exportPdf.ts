@@ -176,8 +176,14 @@ export async function buildPagedHtml(
     ? `<div class="page-footer">${escapeHtml(settings.footerText)}</div>`
     : ''
 
+  // Thème de l'interface au moment de la construction ; la classe ws-dark ne
+  // pilote que l'habillage écran ci-dessous (jamais l'impression). Les bascules
+  // à chaud sont propagées par PagedPreview sans repagination.
+  const uiDark =
+    typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark'
+
   const doc = `<!DOCTYPE html>
-<html lang="fr">
+<html lang="fr"${uiDark ? ' class="ws-dark"' : ''}>
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
@@ -191,8 +197,10 @@ export async function buildPagedHtml(
 @media screen {
   html { background: #f5f5f7; }
   body { background: #f5f5f7; }
+  html.ws-dark, html.ws-dark body { background: #1c1c1e; }
   .pagedjs_pages { display: flex; flex-direction: column; align-items: center; padding: 28px 8px 80px; }
   .pagedjs_page { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 18px 48px rgba(0,0,0,0.1); margin-bottom: 24px; border-radius: 2px; }
+  html.ws-dark .pagedjs_page { box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 18px 48px rgba(0,0,0,0.5); }
 }
 </style>
 <script>

@@ -26,6 +26,23 @@ function debounceFor(length: number): number {
   return Math.min(3500, 900 + Math.floor(length / 40))
 }
 
+/**
+ * Bascule de thème à chaud : pousse la classe ws-dark (habillage écran du
+ * document d'aperçu) dans les faces déjà paginées — aucune repagination.
+ * Les paginations suivantes embarquent la classe dès la construction du HTML.
+ */
+function useThemeSync(apply: (dark: boolean) => void) {
+  const applyRef = useRef(apply)
+  applyRef.current = apply
+  useEffect(() => {
+    const obs = new MutationObserver(() =>
+      applyRef.current(document.documentElement.dataset.theme === 'dark')
+    )
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => obs.disconnect()
+  }, [])
+}
+
 /** Surface minimale du <webview> Electron utilisée ici. */
 interface PreviewWebview extends HTMLElement {
   src: string
@@ -72,6 +89,18 @@ function WebviewPreview({ markdown, settings, title, projectPath, exportIdRef, o
   // pas relancer la pagination
   const onAnchorsRef = useRef(onAnchors)
   onAnchorsRef.current = onAnchors
+
+  useThemeSync((dark) => {
+    for (const ref of [viewARef, viewBRef]) {
+      try {
+        ref.current
+          ?.executeJavaScript(`document.documentElement.classList.toggle('ws-dark', ${dark})`)
+          .catch(() => {})
+      } catch {
+        /* face jamais chargée : la classe viendra avec sa première pagination */
+      }
+    }
+  })
 
   // Export fidèle : exposer l'id du webContents de la face visible
   const pagesRef = useRef<number | null>(null)
@@ -194,6 +223,12 @@ function IframePreview({ markdown, settings, title, onAnchors }: Props) {
 
   const onAnchorsRef = useRef(onAnchors)
   onAnchorsRef.current = onAnchors
+
+  useThemeSync((dark) => {
+    for (const ref of [frameARef, frameBRef]) {
+      ref.current?.contentDocument?.documentElement.classList.toggle('ws-dark', dark)
+    }
+  })
 
   useEffect(() => {
     const gen = ++generation.current

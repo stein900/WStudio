@@ -15,12 +15,18 @@ export interface ProjectData {
   path: string
   markdown: string
   settings: PageSettings | null
+  /** Projet jetable, stocké dans le dossier temp de Windows (jamais listé). */
+  temporary?: boolean
 }
 
 /** Pont exposé par le preload Electron (absent dans un navigateur). */
 export interface RapportBridge {
   listProjects(): Promise<ProjectInfo[]>
-  createProject(opts: { name: string; markdown?: string }): Promise<ProjectData>
+  createProject(opts: {
+    name: string
+    markdown?: string
+    temporary?: boolean
+  }): Promise<ProjectData>
   openProject(dir: string): Promise<ProjectData | null>
   saveProject(opts: { path: string; markdown: string; settings: PageSettings }): Promise<boolean>
   saveProjectNow(opts: { path: string; markdown: string; settings: PageSettings }): void

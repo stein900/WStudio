@@ -272,8 +272,12 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
         ...paginationConfig(settings),
         pageGap: 18,
         pageGapBorderSize: 1,
-        pageGapBorderColor: '#e8e8ec',
-        pageBreakBackground: '#f5f5f7', // = --canvas (index.css)
+        // = --canvas / --border (index.css) selon le thème ; lu au montage —
+        // App remonte cet éditeur (clé) quand le thème bascule.
+        pageGapBorderColor:
+          document.documentElement.dataset.theme === 'dark' ? '#3a3a3d' : '#e8e8ec',
+        pageBreakBackground:
+          document.documentElement.dataset.theme === 'dark' ? '#1c1c1e' : '#f5f5f7',
         contentMarginTop: 0,
         contentMarginBottom: 0,
       }),

@@ -8,6 +8,8 @@ import { useEffect, useRef } from 'react'
 interface Props {
   value: string
   onChange: (value: string) => void
+  /** Thème sombre de l'application (bascule le thème CodeMirror). */
+  dark?: boolean
 }
 
 // Panneau de recherche CodeMirror en français
@@ -35,7 +37,7 @@ const extensions = [
   keymap.of([{ key: 'Mod-h', run: openSearchPanel, preventDefault: true }]),
 ]
 
-export function MarkdownEditor({ value, onChange }: Props) {
+export function MarkdownEditor({ value, onChange, dark }: Props) {
   const viewRef = useRef<EditorView | null>(null)
 
   // Ctrl+F / Ctrl+H même quand le focus est hors de l'éditeur
@@ -59,6 +61,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
       onChange={onChange}
       extensions={extensions}
       height="100%"
+      theme={dark ? 'dark' : 'light'}
       className="md-editor"
       onCreateEditor={(view) => {
         viewRef.current = view

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { MarkdownEditor } from './components/MarkdownEditor'
 import { PagedPreview } from './components/PagedPreview'
 import { DocEditor } from './components/DocEditor'
@@ -14,6 +14,15 @@ import './App.css'
 
 const LS_DOC = 'rapportcreator.doc'
 const LS_SETTINGS = 'rapportcreator.settings'
+const LS_THEME = 'wstudio.theme'
+
+type Theme = 'light' | 'dark'
+
+function initialTheme(): Theme {
+  const saved = localStorage.getItem(LS_THEME)
+  if (saved === 'dark' || saved === 'light') return saved
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
 
 interface SaveFilePickerWindow extends Window {
   showSaveFilePicker?: (options?: {
@@ -53,9 +62,22 @@ export default function App() {
   const openInputRef = useRef<HTMLInputElement>(null)
 
   // Projet WStudio courant (application de bureau) et vue active
-  const [project, setProject] = useState<{ name: string; path: string } | null>(null)
+  const [project, setProject] = useState<{
+    name: string
+    path: string
+    temporary?: boolean
+  } | null>(null)
   const [view, setView] = useState<'home' | 'editor'>(isDesktop ? 'home' : 'editor')
   const [createSignal, setCreateSignal] = useState(0)
+
+  // Thème clair/sombre : appliqué sur <html> (les feuilles de style s'y
+  // accrochent), mémorisé, système par défaut au premier lancement.
+  const [theme, setTheme] = useState<Theme>(initialTheme)
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem(LS_THEME, theme)
+  }, [theme])
+  const toggleTheme = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
 
   // Aperçu fidèle (moteur du PDF) en écran partagé dans le mode Document
   const [docSplit, setDocSplit] = useState(
@@ -146,7 +168,7 @@ export default function App() {
         /* extraction impossible : ouvrir tel quel */
       }
     }
-    setProject({ name: p.name, path: p.path })
+    setProject({ name: p.name, path: p.path, temporary: p.temporary })
     setMarkdown(md)
     setSettings(p.settings ? { ...DEFAULT_SETTINGS, ...p.settings } : DEFAULT_SETTINGS)
     setDocAnchors(null) // ancres de l'ancien document : ne pas synchroniser dessus
@@ -333,7 +355,14 @@ export default function App() {
   )
 
   if (isDesktop && view === 'home') {
-    return <Home onOpenProject={openProjectData} createSignal={createSignal} />
+    return (
+      <Home
+        onOpenProject={openProjectData}
+        createSignal={createSignal}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    )
   }
 
   return (
@@ -362,10 +391,14 @@ export default function App() {
             {project && (
               <button
                 className="project-chip"
-                title={`Ouvrir le dossier ${project.path}`}
+                title={
+                  project.temporary
+                    ? `Projet temporaire — ${project.path}`
+                    : `Ouvrir le dossier ${project.path}`
+                }
                 onClick={() => void desktop?.revealProject(project.path)}
               >
-                <Icon name="folder" size={13} />
+                <Icon name={project.temporary ? 'clock' : 'folder'} size={13} />
                 {project.name}
               </button>
             )}
@@ -421,6 +454,13 @@ export default function App() {
         </div>
 
         <div className="topbar-group topbar-right">
+          <button
+            className="btn btn-icon"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'}
+          >
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+          </button>
           {mode === 'doc' && (
             <button
               className={docSplit ? 'btn btn-accent' : 'btn'}
@@ -460,7 +500,7 @@ export default function App() {
                 </span>
               </div>
               <div className="pane-body">
-                <MarkdownEditor value={markdown} onChange={setMarkdown} />
+                <MarkdownEditor value={markdown} onChange={setMarkdown} dark={theme === 'dark'} />
               </div>
             </div>
             <div className="pane pane-preview">
@@ -487,7 +527,7 @@ export default function App() {
           <div className="split" style={docSplit ? undefined : { gridTemplateColumns: '1fr' }}>
             <div className="pane pane-editor">
               <DocEditor
-                key={`${docKey}-${settings.fontSize}-${settings.fontFamily}`}
+                key={`${docKey}-${settings.fontSize}-${settings.fontFamily}-${theme}`}
                 initialMarkdown={markdown}
                 onChange={setMarkdown}
                 settings={settings}
@@ -558,7 +598,11 @@ export default function App() {
         </span>
         <span>
           <span className="status-dot" />
-          {project ? `Enregistré — WStudio\\${project.name}` : 'Sauvegarde locale automatique'}
+          {project
+            ? project.temporary
+              ? 'Projet temporaire — non conservé dans vos documents'
+              : `Enregistré — WStudio\\${project.name}`
+            : 'Sauvegarde locale automatique'}
         </span>
       </footer>
 

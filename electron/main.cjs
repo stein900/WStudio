@@ -1,5 +1,5 @@
 // Processus principal Electron de WStudio.
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, protocol, net } = require('electron')
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, protocol, net, nativeTheme } = require('electron')
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
@@ -13,6 +13,9 @@ protocol.registerSchemesAsPrivileged([
 
 // Racine des projets : Documents\WStudio\<Nom_du_projet>\
 const projectsRoot = () => path.join(app.getPath('documents'), 'WStudio')
+// Projets temporaires : dossier temp de Windows, nettoyé par le système —
+// jamais listés sur l'accueil, rien ne reste dans les documents de l'utilisateur.
+const tempRoot = () => path.join(app.getPath('temp'), 'WStudio Temporaire')
 const PROJECT_MD = 'rapport.md'
 const PROJECT_META = 'projet.json'
 
@@ -58,7 +61,10 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 640,
     show: false,
-    backgroundColor: '#f5f5f7',
+    // = --canvas clair/sombre (index.css) : évite l'éclair blanc au démarrage.
+    // Approximation par le thème système — le choix mémorisé dans l'app prend
+    // le relais dès le premier rendu.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#f5f5f7',
     title: 'WStudio',
     icon: path.join(__dirname, '..', 'buildResources', 'icon.png'),
     webPreferences: {
@@ -257,14 +263,20 @@ ipcMain.handle('projects:list', async () => {
   return projects
 })
 
-ipcMain.handle('projects:create', async (_e, { name, markdown }) => {
-  const root = projectsRoot()
+ipcMain.handle('projects:create', async (_e, { name, markdown, temporary }) => {
+  const root = temporary ? tempRoot() : projectsRoot()
   const base = sanitizeProjectName(name)
   let dir = path.join(root, base)
   for (let i = 2; fs.existsSync(dir); i++) dir = path.join(root, `${base} (${i})`)
   const content = markdown ?? `# ${base}\n\n[TOC]\n\n## 1. Introduction\n\n`
   await writeProject(dir, content, null)
-  return { name: path.basename(dir), path: dir, markdown: content, settings: null }
+  return {
+    name: path.basename(dir),
+    path: dir,
+    markdown: content,
+    settings: null,
+    temporary: Boolean(temporary),
+  }
 })
 
 ipcMain.handle('projects:open', async (_e, dir) => {
@@ -499,8 +511,11 @@ if (!app.requestSingleInstanceLock()) {
       try {
         const enc = request.url.replace(/^wstudio:\/\/asset\//i, '').replace(/[?#].*$/, '')
         const abs = path.resolve(decodeURIComponent(enc))
-        const root = path.resolve(projectsRoot()).toLowerCase() + path.sep
-        if (!abs.toLowerCase().startsWith(root)) return new Response('Interdit', { status: 403 })
+        const roots = [projectsRoot(), tempRoot()].map(
+          (r) => path.resolve(r).toLowerCase() + path.sep
+        )
+        if (!roots.some((r) => abs.toLowerCase().startsWith(r)))
+          return new Response('Interdit', { status: 403 })
         return net.fetch(pathToFileURL(abs).toString())
       } catch {
         return new Response('Requête invalide', { status: 400 })

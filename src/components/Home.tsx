@@ -6,6 +6,8 @@ interface Props {
   onOpenProject: (project: ProjectData) => void
   /** Incrémenté par le menu « Nouveau projet » pour ouvrir la boîte de création. */
   createSignal: number
+  theme: 'light' | 'dark'
+  onToggleTheme: () => void
 }
 
 function relativeDate(ms: number): string {
@@ -20,7 +22,7 @@ function relativeDate(ms: number): string {
   return new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-export function Home({ onOpenProject, createSignal }: Props) {
+export function Home({ onOpenProject, createSignal, theme, onToggleTheme }: Props) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
@@ -66,6 +68,17 @@ export function Home({ onOpenProject, createSignal }: Props) {
     [onOpenProject]
   )
 
+  const createTempProject = useCallback(async () => {
+    if (!desktop || busy) return
+    setBusy(true)
+    try {
+      const project = await desktop.createProject({ name: 'Brouillon', temporary: true })
+      onOpenProject(project)
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, onOpenProject])
+
   const importDocument = useCallback(async () => {
     if (!desktop || busy) return
     const file = await desktop.openMarkdown()
@@ -96,11 +109,15 @@ export function Home({ onOpenProject, createSignal }: Props) {
 
   return (
     <div className="home">
+      <button
+        className="btn btn-icon home-theme-btn"
+        onClick={onToggleTheme}
+        title={theme === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'}
+      >
+        <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+      </button>
       <div className="home-inner">
         <header className="home-hero">
-          <div className="home-mark">
-            <Icon name="file-text" size={26} strokeWidth={2} />
-          </div>
           <h1 className="home-title">
             W<span>Studio</span>
           </h1>
@@ -115,6 +132,14 @@ export function Home({ onOpenProject, createSignal }: Props) {
             <button className="btn home-btn" onClick={importDocument}>
               <Icon name="folder-open" />
               Importer un document…
+            </button>
+            <button
+              className="btn home-btn"
+              onClick={() => void createTempProject()}
+              title="Pour essayer ou produire vite un document : créé dans le dossier temporaire de Windows, rien n'est conservé dans vos documents"
+            >
+              <Icon name="clock" />
+              Projet temporaire
             </button>
           </div>
         </header>
