@@ -1,0 +1,36 @@
+diff --git a/node_modules/app-builder-lib/out/util/electronGet.js b/node_modules/app-builder-lib/out/util/electronGet.js
+index a941f9d..78405ee 100644
+--- a/node_modules/app-builder-lib/out/util/electronGet.js
++++ b/node_modules/app-builder-lib/out/util/electronGet.js
+@@ -184,7 +184,30 @@ async function extractArchive(file, dir) {
+             throw new Error(`Extraction of ${path.basename(file)} produced no files`);
+         }
+         await fs.rm(dir, { recursive: true, force: true });
+-        await fs.rename(tmpDir, dir);
++        // Windows : un indexeur/watcher (Search, IDE, antivirus) peut tenir un handle
++        // sur le répertoire fraîchement peuplé → EPERM au rename. On réessaie, puis
++        // on bascule sur une copie récursive (les fichiers, eux, ne sont pas verrouillés).
++        for (let i = 0;; i++) {
++            try {
++                await fs.rename(tmpDir, dir);
++                break;
++            }
++            catch (e) {
++                if (e.code !== "EPERM" && e.code !== "EACCES" && e.code !== "EBUSY") {
++                    throw e;
++                }
++                if (i >= 4) {
++                    builder_util_1.log.warn(null, "rename toujours bloqué : repli sur copie récursive");
++                    await fs.cp(tmpDir, dir, { recursive: true, force: true, verbatimSymlinks: true });
++                    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {
++                        builder_util_1.log.warn({ tmpDir }, "répertoire temporaire non supprimé (verrou externe)");
++                    });
++                    break;
++                }
++                builder_util_1.log.warn({ attempt: i + 1 }, "rename bloqué (verrou externe), nouvelle tentative");
++                await new Promise(r => setTimeout(r, 1500));
++            }
++        }
+     }
+     finally {
+         await release().catch(err => builder_util_1.log.warn({ err }, "failed to release lockfile"));
