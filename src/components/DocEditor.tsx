@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
+import { StyledImage } from './StyledImage'
 import { TableKit } from '@tiptap/extension-table'
 import CodeBlock from '@tiptap/extension-code-block'
 import { Markdown } from 'tiptap-markdown'
@@ -259,7 +259,7 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
       MathInline,
       MathBlock,
       SearchReplace,
-      Image.configure({ allowBase64: true }),
+      StyledImage.configure({ allowBase64: true }),
       TableKit.configure({ table: { resizable: false } }),
       Markdown.configure({
         html: true,

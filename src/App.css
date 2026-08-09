@@ -1027,6 +1027,110 @@
   position: relative;
 }
 
+/* ---------- Images : redimensionnement, arrondi, rotation ---------- */
+/* Marge alignée sur le <p> du rendu PDF (parité de pagination). */
+.doc-editor-content .ws-img-view {
+  margin: 0 0 0.7em;
+}
+/* le cadre de sélection est porté par la boîte de l'image, pas par la
+   rangée pleine largeur */
+.doc-editor-content .ws-img-view.ProseMirror-selectednode {
+  outline: none;
+}
+.doc-editor-content .ws-img-box {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+}
+.doc-editor-content .ws-img-box img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.doc-editor-content .ws-img-view.is-selected .ws-img-box {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.ws-img-handle {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  background: var(--surface);
+  border: 1.5px solid var(--accent-bright);
+  border-radius: 50%;
+  display: none;
+  z-index: 6;
+}
+.ws-img-view.is-selected .ws-img-handle {
+  display: block;
+}
+.ws-img-handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.ws-img-handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.ws-img-handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.ws-img-handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
+.ws-img-controls {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  transform: translate(-50%, -100%);
+  display: none;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 11px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+  line-height: normal;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 12px;
+  color: var(--text-1);
+  white-space: nowrap;
+  z-index: 40;
+  user-select: none;
+}
+.ws-img-view.is-selected .ws-img-controls {
+  display: flex;
+}
+.ws-img-controls.is-below {
+  top: calc(100% + 12px);
+  transform: translate(-50%, 0);
+}
+.ws-img-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ws-img-label {
+  width: 52px;
+  color: var(--text-2);
+}
+.ws-img-value {
+  width: 42px;
+  text-align: right;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ws-img-badge {
+  margin-left: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ws-img-controls input[type='range'] {
+  width: 130px;
+  accent-color: var(--accent-bright);
+}
+.ws-img-btn svg {
+  display: block;
+}
+
 /* ---------- Panneau Mise en page (inspecteur flottant) ---------- */
 .settings-panel {
   position: absolute;

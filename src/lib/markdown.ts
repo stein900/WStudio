@@ -9,6 +9,7 @@ const katexPlugin =
   (katexPluginModule as unknown as { default?: typeof katexPluginModule }).default ??
   katexPluginModule
 import mermaid from 'mermaid'
+import { imageStyleCss, parseImageStyle } from './imageStyle'
 
 mermaid.initialize({
   startOnLoad: false,
@@ -59,6 +60,22 @@ md.renderer.rules.fence = ((tokens, idx, options, env, self) => {
     return `<div class="mermaid-diagram" data-mermaid="${encodeURIComponent(token.content)}"></div>`
   }
   return defaultFence(tokens, idx, options, env, self)
+}) as RendererRule
+
+// Les réglages visuels d'une image vivent dans son TITRE Markdown (« ws:… »,
+// voir lib/imageStyle) : traduits ici en style inline, et le titre est retiré
+// — le descripteur ne doit jamais apparaître en info-bulle dans le PDF.
+const defaultImage: RendererRule = md.renderer.rules.image!
+md.renderer.rules.image = ((tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  const title = token.attrGet('title')
+  const style = parseImageStyle(typeof title === 'string' ? title : null)
+  if (style) {
+    token.attrs = (token.attrs ?? []).filter(([name]) => name !== 'title')
+    const css = imageStyleCss(style)
+    if (css) token.attrSet('style', css)
+  }
+  return defaultImage(tokens, idx, options, env, self)
 }) as RendererRule
 
 function slugify(text: string): string {
