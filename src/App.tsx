@@ -12,6 +12,7 @@ import { applyHunks } from './lib/diff'
 import { Home } from './components/Home'
 import { Icon } from './components/Icons'
 import { PaintView } from './paint/PaintView'
+import { PdfEditView } from './pdfedit/PdfEditView'
 import { desktop, isDesktop, type ProjectData } from './lib/desktop'
 import logoUrl from './assets/wstudio-logo.png'
 import { exportToPdf, type PagedAnchors } from './lib/exportPdf'
@@ -78,7 +79,9 @@ export default function App() {
     path: string
     temporary?: boolean
   } | null>(null)
-  const [view, setView] = useState<'home' | 'editor' | 'paint'>(isDesktop ? 'home' : 'editor')
+  const [view, setView] = useState<'home' | 'editor' | 'paint' | 'pdfedit'>(
+    isDesktop ? 'home' : 'editor'
+  )
   const [createSignal, setCreateSignal] = useState(0)
 
   // Thème clair/sombre : appliqué sur <html> (les feuilles de style s'y
@@ -414,6 +417,10 @@ export default function App() {
       document.title = 'Paint — WStudio'
       return
     }
+    if (view === 'pdfedit') {
+      document.title = 'Éditeur PDF — WStudio'
+      return
+    }
     const name =
       project?.name ??
       (filePath ? filePath.replace(/^.*[\\/]/, '') : documentTitle(markdown))
@@ -429,6 +436,10 @@ export default function App() {
     return <PaintView onClose={() => setView('home')} />
   }
 
+  if (view === 'pdfedit') {
+    return <PdfEditView onClose={() => setView('home')} />
+  }
+
   if (isDesktop && view === 'home') {
     return (
       <Home
@@ -437,6 +448,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenPaint={() => setView('paint')}
+        onOpenPdfEdit={() => setView('pdfedit')}
       />
     )
   }

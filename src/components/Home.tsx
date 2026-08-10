@@ -10,6 +10,8 @@ interface Props {
   onToggleTheme: () => void
   /** Ouvre le module Paint (dessins & schémas). */
   onOpenPaint: () => void
+  /** Ouvre l'Éditeur PDF (modification du texte d'un PDF existant). */
+  onOpenPdfEdit: () => void
 }
 
 function relativeDate(ms: number): string {
@@ -24,7 +26,14 @@ function relativeDate(ms: number): string {
   return new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-export function Home({ onOpenProject, createSignal, theme, onToggleTheme, onOpenPaint }: Props) {
+export function Home({
+  onOpenProject,
+  createSignal,
+  theme,
+  onToggleTheme,
+  onOpenPaint,
+  onOpenPdfEdit,
+}: Props) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
@@ -150,6 +159,14 @@ export function Home({ onOpenProject, createSignal, theme, onToggleTheme, onOpen
             >
               <Icon name="pencil" />
               Paint
+            </button>
+            <button
+              className="btn home-btn"
+              onClick={onOpenPdfEdit}
+              title="Modifier le texte d'un PDF existant : importer, cliquer sur un texte pour le remplacer ou l'effacer, exporter la copie modifiée"
+            >
+              <Icon name="file-text" />
+              Éditeur PDF
             </button>
           </div>
         </header>
