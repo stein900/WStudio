@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy, PageViewport } from 'pdfjs-dist'
+import { Icon } from '../components/Icons'
 import { extractSpans, inkCoverRect, pdfRectToCss, renderPage, sampleBackground, spanRect, textAnnotSize } from './pdf'
 import type { Annot, PdfRect, ShapeAnnot, SpanRect, TextEdit, TextSpan, Tool } from './types'
 
@@ -300,7 +301,10 @@ export function PdfPage({
         // du focus vers la surface cliquée) s'exécute APRÈS l'ouverture de la
         // saisie et la refermerait aussitôt par blur.
         e.preventDefault()
-        // La saisie précédente se valide via son blur ; on ouvre la nouvelle
+        // Une saisie était en cours : cliquer ailleurs la VALIDE (le
+        // preventDefault ci-dessus court-circuite son blur), puis on ouvre
+        // la nouvelle à l'endroit cliqué.
+        if (textEditing && textEditing.value.trim()) commitTextEdit(textEditing)
         setTextEditing({
           id: null,
           cssX: p.x,
@@ -314,7 +318,7 @@ export function PdfPage({
       ;(e.target as Element).setPointerCapture(e.pointerId)
       setGesture({ type: 'draw', x0: p.x, y0: p.y, x1: p.x, y1: p.y })
     },
-    [tool, textStyle]
+    [tool, textStyle, textEditing, commitTextEdit]
   )
 
   const startMove = useCallback(
@@ -564,42 +568,72 @@ export function PdfPage({
           )}
 
           {textEditing && viewport && (
-            <textarea
-              ref={textAreaRef}
-              className="pdfedit-textinput"
-              style={{
-                left: textEditing.cssX - 3,
-                top: textEditing.cssY - 3,
-                width: Math.max(
-                  200,
-                  textAnnotSize(textEditing.value || 'M', textEditing.fontSize).width *
-                    viewport.scale +
-                    28
-                ),
-                height:
-                  textEditing.value.split('\n').length *
-                    textEditing.fontSize *
-                    1.25 *
-                    viewport.scale +
-                  12,
-                fontSize: textEditing.fontSize * viewport.scale,
-                color: textEditing.color,
-              }}
-              value={textEditing.value}
-              onChange={(e) =>
-                setTextEditing((te) => (te ? { ...te, value: e.target.value } : te))
-              }
-              onPointerDown={(e) => e.stopPropagation()}
-              onBlur={() => commitTextEdit(textEditing)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
+            <div
+              className="pdfedit-textbox"
+              style={{ left: textEditing.cssX - 3, top: textEditing.cssY - 3 }}
+            >
+              <div
+                className="pdfedit-textbar"
+                /* preventDefault : le clic sur ces boutons ne doit pas faire
+                   perdre le focus au textarea (sinon son blur validerait
+                   avant même que « Annuler » ne s'exécute) */
+                onPointerDown={(e) => {
+                  e.preventDefault()
                   e.stopPropagation()
-                  setTextEditing(null)
+                }}
+              >
+                <button
+                  className="pdfedit-textbtn is-ok"
+                  onClick={() => commitTextEdit(textEditing)}
+                  title="Valider le texte (cliquer ailleurs valide aussi)"
+                >
+                  <Icon name="check" size={12} />
+                  Valider
+                </button>
+                <button
+                  className="pdfedit-textbtn"
+                  onClick={() => setTextEditing(null)}
+                  title="Annuler (Échap)"
+                >
+                  <Icon name="x" size={12} />
+                  Annuler
+                </button>
+              </div>
+              <textarea
+                ref={textAreaRef}
+                className="pdfedit-textinput"
+                style={{
+                  width: Math.max(
+                    200,
+                    textAnnotSize(textEditing.value || 'M', textEditing.fontSize).width *
+                      viewport.scale +
+                      28
+                  ),
+                  height:
+                    textEditing.value.split('\n').length *
+                      textEditing.fontSize *
+                      1.25 *
+                      viewport.scale +
+                    12,
+                  fontSize: textEditing.fontSize * viewport.scale,
+                  color: textEditing.color,
+                }}
+                value={textEditing.value}
+                onChange={(e) =>
+                  setTextEditing((te) => (te ? { ...te, value: e.target.value } : te))
                 }
-              }}
-              placeholder="Votre texte…"
-              spellCheck={false}
-            />
+                onPointerDown={(e) => e.stopPropagation()}
+                onBlur={() => commitTextEdit(textEditing)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation()
+                    setTextEditing(null)
+                  }
+                }}
+                placeholder="Votre texte…"
+                spellCheck={false}
+              />
+            </div>
           )}
           {editing && (
             <input

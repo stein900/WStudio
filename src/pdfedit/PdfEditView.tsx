@@ -235,7 +235,9 @@ export function PdfEditView({ onClose }: Props) {
   const onAddAnnot = useCallback((annot: Annot) => {
     setAnnots((prev) => new Map(prev).set(annot.id, annot))
     setSelectedAnnot(annot.id)
-    setTool('cursor') // la forme posée est prête à être ajustée
+    // Forme posée : prête à être ajustée. Texte : l'outil reste actif pour
+    // pouvoir en poser plusieurs à la suite (Échap ou la flèche pour sortir).
+    setTool((t) => (annot.kind === 'text' ? t : 'cursor'))
   }, [])
 
   const onMoveAnnot = useCallback((id: string, rect: PdfRect) => {
