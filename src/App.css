@@ -738,6 +738,28 @@
     0 18px 48px rgba(0, 0, 0, 0.1);
   border-radius: 2px;
 }
+/* Bandes d'en-tête/pied personnalisées : tout le contenu vit dans le slot
+   gauche du plugin, étiré sur la largeur utile — la grille trois zones
+   .ws-hf à l'intérieur gère les alignements gauche/centre/droite. */
+.rm-with-pagination .rm-page-header-left,
+.rm-with-pagination .rm-page-footer-left {
+  width: calc(100% - var(--rm-margin-left) - var(--rm-margin-right));
+}
+/* Les décalages verticaux (« Hauteur » dans Mise en page) peuvent faire
+   dépasser le logo/texte de la bande : rien ne doit être rogné. Le plugin
+   pose overflow:hidden en style inline ET dans sa feuille — neutralisé en
+   !important sur toute la chaîne de conteneurs. */
+.rm-with-pagination .rm-page-header,
+.rm-with-pagination .rm-page-footer,
+.rm-with-pagination .rm-page-header-content,
+.rm-with-pagination .rm-page-footer-content,
+.rm-with-pagination .rm-page-header-left,
+.rm-with-pagination .rm-page-header-right,
+.rm-with-pagination .rm-page-footer-left,
+.rm-with-pagination .rm-page-footer-right {
+  overflow: visible !important;
+}
+
 /* tiptap-pagination-plus positionne ses bandes de page avec des floats que le
    texte contourne ligne à ligne. Un élément en overflow ≠ visible (BFC) est
    poussé en bloc sous chaque bande, ce qui fait diverger la pagination. */
@@ -1953,4 +1975,28 @@
 .ai-profile-form {
   margin: 4px 24px 0;
   overflow-y: auto;
+}
+
+/* Sélecteur d'alignement (panneau Mise en page) */
+.align-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--hover, rgba(125, 125, 125, 0.1));
+  border-radius: 8px;
+}
+.align-seg button {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.align-seg button.is-active {
+  background: var(--panel, #fff);
+  color: var(--text-1);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }

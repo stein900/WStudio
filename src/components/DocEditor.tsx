@@ -15,7 +15,8 @@ import { MathBlock, MathInline } from './MathNodes'
 import { SearchReplace } from './SearchReplace'
 import { assetUrl, fromEditorMarkdown, toEditorMarkdown } from '../lib/assets'
 import { desktop } from '../lib/desktop'
-import { escapeHtml, getCachedMermaidSvg, renderMermaidToSvg } from '../lib/markdown'
+import { getCachedMermaidSvg, renderMermaidToSvg } from '../lib/markdown'
+import { buildFooterHtml, buildHeaderHtml, hasFooter, hasHeader, headerFooterCss } from '../lib/headerFooter'
 import { MM_TO_PX, pageMarginsMm, reportTypographyCss } from '../lib/reportTypography'
 import type { PagedAnchors } from '../lib/exportPdf'
 import type { PageSettings } from '../types'
@@ -48,11 +49,7 @@ type PaginationConfig = Pick<
 >
 
 function paginationConfig(s: PageSettings): PaginationConfig {
-  const hasHeader = Boolean(s.headerText || s.headerLogo)
-  const m = pageMarginsMm(s)
-  const headerLeft = s.headerLogo
-    ? `<img src="${s.headerLogo}" style="height:34px;width:auto" alt="logo">`
-    : ''
+  const m = pageMarginsMm()
   return {
     pageWidth: Math.round(210 * MM_TO_PX),
     pageHeight: Math.round(297 * MM_TO_PX),
@@ -60,12 +57,14 @@ function paginationConfig(s: PageSettings): PaginationConfig {
     marginBottom: Math.round(m.bottom * MM_TO_PX),
     marginLeft: Math.round(m.side * MM_TO_PX),
     marginRight: Math.round(m.side * MM_TO_PX),
-    headerLeft,
-    headerRight: escapeHtml(s.headerText),
-    footerLeft: escapeHtml(s.footerText),
-    footerRight: s.pageNumbers ? '{page}' : '',
+    // Toute la bande vit dans le slot gauche, en pleine largeur : la grille
+    // trois zones .ws-hf (partagée avec l'export PDF) gère les alignements.
+    headerLeft: hasHeader(s) ? buildHeaderHtml(s) : '',
+    headerRight: '',
+    footerLeft: hasFooter(s) ? buildFooterHtml(s, '{page}') : '',
+    footerRight: '',
     customHeader:
-      hasHeader && !s.headerOnFirstPage ? { 1: { headerLeft: '', headerRight: '' } } : {},
+      hasHeader(s) && !s.headerOnFirstPage ? { 1: { headerLeft: '', headerRight: '' } } : {},
   }
 }
 
@@ -235,6 +234,10 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
   // (calibration, [TOC], Titre 1) s'efface alors, les ancres couvrent tout.
   const servoActiveRef = useRef(false)
   const bandStyleRef = useRef<HTMLStyleElement | null>(null)
+  // Réglages toujours frais pour les effets aux dépendances restreintes
+  // (les relancer sur chaque réglage d'en-tête provoquait le glitch).
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
   // instant de la dernière frappe : le recalage n'agit QUE au repos (règle
   // d'or type Word — pendant l'édition, rien ne bouge à part l'édition)
   const lastEditRef = useRef(0)
@@ -410,19 +413,16 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
     let calibrated = false
     let disposed = false
 
-    const base = paginationConfig(settings)
-    editor
-      .chain()
-      .updateMargins({
-        top: base.marginTop,
-        bottom: base.marginBottom,
-        left: base.marginLeft,
-        right: base.marginRight,
-      })
-      .updateHeaderContent(base.headerLeft, base.headerRight)
-      .updateFooterContent(base.footerLeft, base.footerRight)
-      .run()
-    if (base.customHeader[1]) editor.commands.updateHeaderContent('', '', 1)
+    // Marges seulement — le contenu des bandes est géré par l'effet dédié
+    // ci-dessous (le relancer ici re-déclencherait calibration + double
+    // reconstruction des widgets à chaque réglage d'en-tête : gros glitch).
+    const base = paginationConfig(settingsRef.current)
+    editor.chain().updateMargins({
+      top: base.marginTop,
+      bottom: base.marginBottom,
+      left: base.marginLeft,
+      right: base.marginRight,
+    }).run()
 
     const schedule = (delay = 350) => {
       if (disposed) return
@@ -443,7 +443,7 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
         const isH1 = node.type.name === 'heading' && node.attrs.level === 1
         const isToc =
           node.type.name === 'paragraph' && node.textContent.trim().toUpperCase() === '[TOC]'
-        if (isH1 && settings.h1NewPage && index > 0) {
+        if (isH1 && settingsRef.current.h1NewPage && index > 0) {
           out.push({ from: offset, to: offset + node.nodeSize, kind: 'break' })
         } else if (isToc) {
           out.push({ from: offset, to: offset + node.nodeSize, kind: 'fill' })
@@ -478,7 +478,7 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
       // 1. calibration de la zone de contenu (une seule fois)
       if (breakers.length >= 2 && !calibrated) {
         calibrated = true
-        const m = pageMarginsMm(settings)
+        const m = pageMarginsMm()
         const measured = breakers[1].top - breakers[0].bottom
         const target = (297 - m.top - m.bottom) * MM_TO_PX
         const diff = Math.round(measured - target)
@@ -583,7 +583,30 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
       editor.off('update', onUpdate)
       mo.disconnect()
     }
-  }, [editor, settings])
+    // settings volontairement hors deps (lu via settingsRef) : seul h1NewPage
+    // change les cibles géométriques — les réglages d'en-tête/pied ne doivent
+    // JAMAIS relancer calibration ni marges (source du glitch).
+  }, [editor, settings.h1NewPage])
+
+  // ------------------------------------------------------------------
+  // Contenu des bandes d'en-tête/pied : effet LÉGER dédié. Une mise à jour
+  // du storage du plugin = une seule reconstruction de widgets ; les bandes
+  // réapparaissent aux positions tenues par le CSS du servo (persistant),
+  // sans reset de marges ni recalibration. Les tailles/hauteurs (pt, mm,
+  // translateY) ne passent même pas par ici : pur CSS via la balise <style>.
+  // ------------------------------------------------------------------
+  const bandHeaderLeft = hasHeader(settings) ? buildHeaderHtml(settings) : ''
+  const bandFooterLeft = hasFooter(settings) ? buildFooterHtml(settings, '{page}') : ''
+  const bandFirstPageHeader = settings.headerOnFirstPage ? bandHeaderLeft : ''
+  useEffect(() => {
+    if (!editor) return
+    editor
+      .chain()
+      .updateHeaderContent(bandHeaderLeft, '')
+      .updateFooterContent(bandFooterLeft, '')
+      .updateHeaderContent(bandFirstPageHeader, '', 1)
+      .run()
+  }, [editor, bandHeaderLeft, bandFooterLeft, bandFirstPageHeader])
 
   // ------------------------------------------------------------------
   // Pied de page « page / total » — TOUJOURS le nombre de pages de l'ÉDITEUR
@@ -604,7 +627,7 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
       const n = dom.querySelectorAll('.rm-page-break').length
       if (!settings.pageNumbers || n < 1 || n === last) return
       last = n
-      totalStyle.textContent = `.rm-page-footer-right::after { content: " / ${n}"; }`
+      totalStyle.textContent = `.rm-page-number-plus::after { content: " / ${n}"; }`
     }
     const schedule = () => {
       if (!raf) raf = setTimeout(sync, 120)
@@ -678,7 +701,7 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
       return
     }
 
-    const m = pageMarginsMm(settings)
+    const m = pageMarginsMm()
     const nominal = (297 - m.top - m.bottom) * MM_TO_PX
 
     const schedule = (delay: number) => {
@@ -804,14 +827,18 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
               }
             } else {
               // le PDF coupe pareil ou plus tard (son rendu est plus
-              // compact) : bande juste après le contenu précédent, au plus
-              // près de la hauteur nominale — le bloc d'ancre passe dessous
-              // par le flot (pleine largeur), sans calage
+              // compact) : bande JUSTE APRÈS le contenu précédent — jamais
+              // plus bas (un max avec la hauteur nominale posait la bande
+              // jusqu'à ~26 px SOUS la fin du contenu, et le bloc d'ancre —
+              // typiquement un Titre 1 « nouvelle page » — restait affiché
+              // au-dessus de la bande, en fin de page précédente). La page
+              // peut être marginalement plus courte que le nominal : c'est
+              // aussi le cas dans le PDF, qui termine cette page là.
               if (curPad > 2) {
                 cumContent -= curPad // le calage n'a plus lieu d'être
                 maxCorrection = Math.max(maxCorrection, curPad)
               }
-              targetTop = Math.max(idealTop, prevEnd + 2)
+              targetTop = prevEnd + 2
             }
           }
         }
@@ -907,7 +934,9 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
       editor.off('update', onUpdate)
       if (timer) clearTimeout(timer)
     }
-  }, [editor, anchors, settings])
+    // settings hors deps : le servo ne dépend que des ancres (marges
+    // constantes) — un réglage d'en-tête ne doit pas le relancer.
+  }, [editor, anchors])
 
   // le style des bandes survit d'une livraison d'ancres à l'autre (pas de
   // saut visuel entre deux paginations) — retiré seulement au démontage
@@ -996,7 +1025,7 @@ export function DocEditor({ initialMarkdown, onChange, settings, assetRoot, anch
 
   return (
     <div className="doc-editor">
-      <style>{reportTypographyCss(settings, '.doc-page-canvas')}</style>
+      <style>{reportTypographyCss(settings, '.doc-page-canvas') + headerFooterCss(settings)}</style>
       <div className="doc-toolbar">
         <button
           className="tb-btn"

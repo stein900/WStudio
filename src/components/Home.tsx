@@ -12,6 +12,8 @@ interface Props {
   onOpenPaint: () => void
   /** Ouvre l'Éditeur PDF (modification du texte d'un PDF existant). */
   onOpenPdfEdit: () => void
+  /** Ouvre les Outils PDF (fusion de plusieurs PDF, compression). */
+  onOpenPdfTools: () => void
 }
 
 function relativeDate(ms: number): string {
@@ -33,6 +35,7 @@ export function Home({
   onToggleTheme,
   onOpenPaint,
   onOpenPdfEdit,
+  onOpenPdfTools,
 }: Props) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null)
   const [showNew, setShowNew] = useState(false)
@@ -167,6 +170,14 @@ export function Home({
             >
               <Icon name="file-text" />
               Éditeur PDF
+            </button>
+            <button
+              className="btn home-btn"
+              onClick={onOpenPdfTools}
+              title="Fusionner plusieurs PDF (réorganisation avec aperçu) ou compresser un PDF"
+            >
+              <Icon name="layers" />
+              Outils PDF
             </button>
           </div>
         </header>

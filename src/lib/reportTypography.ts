@@ -7,13 +7,13 @@ export const FONT_STACKS = {
 
 export const MM_TO_PX = 96 / 25.4
 
-export function pageMarginsMm(s: PageSettings): { top: number; bottom: number; side: number } {
-  const hasHeader = Boolean(s.headerText || s.headerLogo)
-  return {
-    top: hasHeader ? 26 : 20,
-    bottom: s.footerText || s.pageNumbers ? 24 : 18,
-    side: 18,
-  }
+/**
+ * Marges de page CONSTANTES : l'en-tête et le pied de page vivent dans la
+ * zone de marge, côté moteur de rendu — les activer, les modifier ou les
+ * retirer ne déplace jamais le contenu et ne repagine pas le document.
+ */
+export function pageMarginsMm(_s?: PageSettings): { top: number; bottom: number; side: number } {
+  return { top: 24, bottom: 22, side: 18 }
 }
 
 /**
