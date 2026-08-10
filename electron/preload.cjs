@@ -46,5 +46,25 @@ contextBridge.exposeInMainWorld('rapportApp', {
     return () => ipcRenderer.removeListener('menu', listener)
   },
 
+  // --- Assistant IA (les clés API restent dans le processus principal) ---
+  /** Configuration publique de l'IA : { profiles, activeProfileId }. */
+  aiGetConfig: () => ipcRenderer.invoke('ai:get-config'),
+  /** Crée ou met à jour un profil de modèle (clé chiffrée via safeStorage). */
+  aiSaveProfile: (profile) => ipcRenderer.invoke('ai:save-profile', profile),
+  /** Supprime un profil de modèle. */
+  aiDeleteProfile: (id) => ipcRenderer.invoke('ai:delete-profile', id),
+  /** Sélectionne le profil actif. */
+  aiSetActiveProfile: (id) => ipcRenderer.invoke('ai:set-active-profile', id),
+  /** Lance une requête IA (correction, reformulation, agent…). */
+  aiRun: (req) => ipcRenderer.invoke('ai:run', req),
+  /** Annule la requête IA en cours identifiée par requestId. */
+  aiCancel: (requestId) => ipcRenderer.send('ai:cancel', requestId),
+  /** Abonne le renderer au flux de progression des requêtes IA. */
+  onAiProgress: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('ai:progress', listener)
+    return () => ipcRenderer.removeListener('ai:progress', listener)
+  },
+
   electronVersion: process.versions.electron,
 })

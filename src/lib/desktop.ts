@@ -19,6 +19,60 @@ export interface ProjectData {
   temporary?: boolean
 }
 
+/** Famille d'API d'un profil de modèle IA. */
+export type AiApi = 'anthropic' | 'openai'
+
+/** Profil de modèle IA, vu du renderer (la clé reste dans le main). */
+export interface AiProfile {
+  id: string
+  name: string
+  api: AiApi
+  baseUrl: string
+  model: string
+  hasKey: boolean
+}
+
+/** Configuration publique de l'assistant IA. */
+export interface AiConfigInfo {
+  profiles: AiProfile[]
+  activeProfileId: string | null
+}
+
+/** Données envoyées pour créer (id absent) ou modifier un profil. */
+export interface AiProfileDraft {
+  id?: string
+  name: string
+  api: AiApi
+  baseUrl: string
+  model: string
+  /** Absente ou vide = clé existante conservée. */
+  apiKey?: string
+}
+
+/**
+ * Modification proposée par l'agent : un passage existant cité mot pour mot
+ * (l'ancre) et son remplacement. Le renderer localise l'ancre dans le
+ * document ; une citation introuvable est rejetée — l'agent ne peut donc
+ * toucher que ce qu'il a correctement cité.
+ */
+export interface AiEdit {
+  original: string
+  replacement: string
+  reason: string
+}
+
+/** Requête IA envoyée au processus principal. */
+export type AiRunRequest =
+  | { requestId: string; kind: 'correct' | 'rewrite'; text: string }
+  | { requestId: string; kind: 'custom'; text: string; instruction: string }
+  | { requestId: string; kind: 'agent'; document: string; instruction: string }
+
+/** Résultat d'une requête IA. */
+export type AiRunResult =
+  | { ok: true; text: string; edits?: undefined }
+  | { ok: true; edits: AiEdit[]; text?: undefined }
+  | { ok: false; error: string; canceled?: boolean }
+
 /** Pont exposé par le preload Electron (absent dans un navigateur). */
 export interface RapportBridge {
   listProjects(): Promise<ProjectInfo[]>
@@ -54,6 +108,13 @@ export interface RapportBridge {
     suggestedName: string
   }): Promise<{ path: string } | null>
   onMenu(callback: (action: string) => void): () => void
+  aiGetConfig(): Promise<AiConfigInfo>
+  aiSaveProfile(profile: AiProfileDraft): Promise<AiConfigInfo>
+  aiDeleteProfile(id: string): Promise<AiConfigInfo>
+  aiSetActiveProfile(id: string): Promise<AiConfigInfo>
+  aiRun(req: AiRunRequest): Promise<AiRunResult>
+  aiCancel(requestId: string): void
+  onAiProgress(callback: (payload: { requestId: string; delta: string }) => void): () => void
   electronVersion: string
 }
 
