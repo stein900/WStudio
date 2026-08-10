@@ -25,13 +25,14 @@ const katexCssUrl = new URL(`${import.meta.env.BASE_URL}katex/katex.min.css`, do
   .href
 import { resolveAssetsToFileUrls } from './assets'
 import { desktop } from './desktop'
+import { buildFooterHtml, buildHeaderHtml, hasFooter, hasHeader, headerFooterCss } from './headerFooter'
 import { renderForExport, escapeHtml } from './markdown'
-import { FONT_STACKS, pageMarginsMm, reportTypographyCss } from './reportTypography'
+import { pageMarginsMm, reportTypographyCss } from './reportTypography'
 
 function buildPrintCss(s: PageSettings): string {
-  const hasHeader = Boolean(s.headerText || s.headerLogo)
-  const hasFooterText = Boolean(s.footerText)
-  const m = pageMarginsMm(s)
+  // Marges CONSTANTES : l'en-tête/pied vit dans la zone de marge et
+  // n'influence jamais la pagination du contenu (voir pageMarginsMm).
+  const m = pageMarginsMm()
 
   return `
 :root { color-scheme: light; }
@@ -40,58 +41,42 @@ function buildPrintCss(s: PageSettings): string {
 @page {
   size: A4;
   margin: ${m.top}mm ${m.side}mm ${m.bottom}mm ${m.side}mm;
-  ${hasHeader ? '@top-center { content: element(pageHeader); }' : ''}
-  ${hasFooterText ? '@bottom-left { content: element(pageFooter); }' : ''}
-  ${
-    s.pageNumbers
-      ? `@bottom-right {
-    content: counter(page) " / " counter(pages);
-    font-family: ${FONT_STACKS[s.fontFamily]};
-    font-size: 9pt;
-    color: #555;
-  }`
-      : ''
-  }
+  ${hasHeader(s) ? '@top-center { content: element(pageHeader); }' : ''}
+  ${hasFooter(s) ? '@bottom-center { content: element(pageFooter); }' : ''}
 }
 
 ${
-  hasHeader && !s.headerOnFirstPage
-    ? `@page :first { margin-top: 20mm; @top-center { content: none; } }
+  hasHeader(s) && !s.headerOnFirstPage
+    ? `@page :first { @top-center { content: none; } }
 /* filet : selon les versions, Paged.js clone quand même l'élément running
    sur la première page malgré le content:none du :first */
 .pagedjs_first_page .pagedjs_margin-top-center .page-header { display: none !important; }`
     : ''
 }
 
-.page-header {
-  position: running(pageHeader);
-  /* largeur EXPLICITE (zone entre les coins de marge) : un pourcentage se
-     résout en shrink-to-fit dans la boîte de marge à l'impression, ce qui
-     recentre logo+texte collés — le mm est identique écran/impression. */
+/* Bandes d'en-tête/pied : grille 3 zones partagée avec l'éditeur Document.
+   Largeur EXPLICITE (zone entre les coins de marge) : un pourcentage se
+   résout en shrink-to-fit dans la boîte de marge à l'impression — le mm est
+   identique écran/impression. */
+.page-header, .page-footer {
   width: ${210 - 2 * m.side}mm;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8mm;
-  padding-bottom: 2mm;
-  border-bottom: 0.4pt solid #b5b5b5;
-  font-family: ${FONT_STACKS[s.fontFamily]};
-  font-size: 9pt;
-  color: #444;
 }
-.page-header img { height: 9mm; width: auto; }
-.page-header .header-text { flex: 1; text-align: right; }
-/* Paged.js force display:block sur le clone de l'élément running dans la
-   boîte de marge — sans flex, logo et texte se retrouvent agglutinés au
-   centre. Rétabli en !important (identique écran et impression). */
-.pagedjs_margin-content .page-header { display: flex !important; }
+.page-header { position: running(pageHeader); }
+.page-footer { position: running(pageFooter); }
+/* Paged.js force le display du clone de l'élément running : on le rétablit
+   (le layout réel est porté par la grille .ws-hf à l'intérieur). */
+.pagedjs_margin-content .page-header,
+.pagedjs_margin-content .page-footer { display: block !important; }
+/* Les décalages verticaux peuvent faire dépasser logo/texte de la boîte de
+   marge : rien ne doit être rogné (Paged.js pose des overflow hidden). */
+.pagedjs_margin,
+.pagedjs_margin-content,
+.pagedjs_margin-top-center,
+.pagedjs_margin-bottom-center { overflow: visible !important; }
 
-.page-footer {
-  position: running(pageFooter);
-  font-family: ${FONT_STACKS[s.fontFamily]};
-  font-size: 9pt;
-  color: #555;
-}
+${headerFooterCss(s)}
+/* Numéro de page (export) : compteurs CSS résolus par Paged.js */
+.ws-pagenum::after { content: counter(page) " / " counter(pages); }
 
 body { margin: 0; text-rendering: optimizeLegibility; }
 
@@ -163,17 +148,14 @@ export async function buildPagedHtml(
   // HTML généré est chargé depuis un fichier temporaire hors du projet)
   const source = projectPath ? resolveAssetsToFileUrls(markdown, projectPath) : markdown
   const contentHtml = await renderForExport(source, { forceToc: settings.autoToc })
-  const m = pageMarginsMm(settings)
+  const m = pageMarginsMm()
 
-  const headerHtml =
-    settings.headerText || settings.headerLogo
-      ? `<div class="page-header">${
-          settings.headerLogo ? `<img src="${settings.headerLogo}" alt="logo">` : ''
-        }<span class="header-text">${escapeHtml(settings.headerText)}</span></div>`
-      : ''
+  const headerHtml = hasHeader(settings)
+    ? `<div class="page-header">${buildHeaderHtml(settings)}</div>`
+    : ''
 
-  const footerHtml = settings.footerText
-    ? `<div class="page-footer">${escapeHtml(settings.footerText)}</div>`
+  const footerHtml = hasFooter(settings)
+    ? `<div class="page-footer">${buildFooterHtml(settings, '')}</div>`
     : ''
 
   // Thème de l'interface au moment de la construction ; la classe ws-dark ne

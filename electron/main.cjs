@@ -516,8 +516,20 @@ if (!app.requestSingleInstanceLock()) {
 
     // wstudio://asset/<chemin absolu encodé> → fichier, restreint à la racine
     // des projets (aucun autre fichier du disque n'est accessible).
+    // wstudio://pdfjs/<chemin relatif> → ressources pdf.js embarquées (polices
+    // standard, CMaps, wasm) pour l'Éditeur PDF : une page chargée en file://
+    // ne peut pas les récupérer en fetch, le protocole interne si.
     protocol.handle('wstudio', (request) => {
       try {
+        if (/^wstudio:\/\/pdfjs\//i.test(request.url)) {
+          const rel = decodeURIComponent(
+            request.url.replace(/^wstudio:\/\/pdfjs\//i, '').replace(/[?#].*$/, '')
+          )
+          const base = path.resolve(path.join(__dirname, '..', 'dist', 'pdfjs'))
+          const abs = path.resolve(base, rel)
+          if (!abs.startsWith(base + path.sep)) return new Response('Interdit', { status: 403 })
+          return net.fetch(pathToFileURL(abs).toString())
+        }
         const enc = request.url.replace(/^wstudio:\/\/asset\//i, '').replace(/[?#].*$/, '')
         const abs = path.resolve(decodeURIComponent(enc))
         const roots = [projectsRoot(), tempRoot()].map(

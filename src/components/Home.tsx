@@ -10,6 +10,10 @@ interface Props {
   onToggleTheme: () => void
   /** Ouvre le module Paint (dessins & schémas). */
   onOpenPaint: () => void
+  /** Ouvre l'Éditeur PDF (modification du texte d'un PDF existant). */
+  onOpenPdfEdit: () => void
+  /** Ouvre les Outils PDF (fusion de plusieurs PDF, compression). */
+  onOpenPdfTools: () => void
 }
 
 function relativeDate(ms: number): string {
@@ -24,7 +28,15 @@ function relativeDate(ms: number): string {
   return new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-export function Home({ onOpenProject, createSignal, theme, onToggleTheme, onOpenPaint }: Props) {
+export function Home({
+  onOpenProject,
+  createSignal,
+  theme,
+  onToggleTheme,
+  onOpenPaint,
+  onOpenPdfEdit,
+  onOpenPdfTools,
+}: Props) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
@@ -150,6 +162,22 @@ export function Home({ onOpenProject, createSignal, theme, onToggleTheme, onOpen
             >
               <Icon name="pencil" />
               Paint
+            </button>
+            <button
+              className="btn home-btn"
+              onClick={onOpenPdfEdit}
+              title="Modifier le texte d'un PDF existant : importer, cliquer sur un texte pour le remplacer ou l'effacer, exporter la copie modifiée"
+            >
+              <Icon name="file-text" />
+              Éditeur PDF
+            </button>
+            <button
+              className="btn home-btn"
+              onClick={onOpenPdfTools}
+              title="Fusionner plusieurs PDF (réorganisation avec aperçu) ou compresser un PDF"
+            >
+              <Icon name="layers" />
+              Outils PDF
             </button>
           </div>
         </header>

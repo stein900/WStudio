@@ -1,10 +1,62 @@
 import { Icon } from './Icons'
-import type { PageSettings } from '../types'
+import type { HfAlign, PageSettings } from '../types'
 
 interface Props {
   settings: PageSettings
   onChange: (settings: PageSettings) => void
   onClose: () => void
+}
+
+/** Curseur de décalage vertical (mm) — négatif : monte, positif : descend. */
+function OffsetSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+}) {
+  const dir = value === 0 ? 'position normale' : value < 0 ? 'vers le haut' : 'vers le bas'
+  return (
+    <label className="field">
+      <span>
+        {label} : {value > 0 ? `+${value}` : value} mm ({dir})
+      </span>
+      <input
+        type="range"
+        min={-8}
+        max={8}
+        step={0.5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </label>
+  )
+}
+
+/** Sélecteur gauche / centre / droite (en-têtes et pieds de page). */
+function AlignPicker({ value, onChange }: { value: HfAlign; onChange: (v: HfAlign) => void }) {
+  const opts: { id: HfAlign; label: string; title: string }[] = [
+    { id: 'left', label: 'Gauche', title: 'Aligné à gauche' },
+    { id: 'center', label: 'Centre', title: 'Centré' },
+    { id: 'right', label: 'Droite', title: 'Aligné à droite' },
+  ]
+  return (
+    <div className="align-seg">
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          className={value === o.id ? 'is-active' : ''}
+          title={o.title}
+          onClick={() => onChange(o.id)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export function SettingsPanel({ settings, onChange, onClose }: Props) {
@@ -34,6 +86,10 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
 
       <section>
         <h3>En-tête</h3>
+        <p className="hint">
+          L'en-tête et le pied de page vivent dans la marge : les modifier ne déplace jamais le
+          contenu du document.
+        </p>
         <label className="field">
           <span>Texte d'en-tête</span>
           <input
@@ -43,6 +99,33 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
             onChange={(e) => set('headerText', e.target.value)}
           />
         </label>
+        {settings.headerText && (
+          <>
+            <div className="field">
+              <span>Position du texte</span>
+              <AlignPicker
+                value={settings.headerTextAlign}
+                onChange={(v) => set('headerTextAlign', v)}
+              />
+            </div>
+            <label className="field">
+              <span>Taille du texte : {settings.headerTextSize} pt</span>
+              <input
+                type="range"
+                min={7}
+                max={13}
+                step={0.5}
+                value={settings.headerTextSize}
+                onChange={(e) => set('headerTextSize', Number(e.target.value))}
+              />
+            </label>
+            <OffsetSlider
+              label="Hauteur du texte"
+              value={settings.headerTextOffsetY}
+              onChange={(v) => set('headerTextOffsetY', v)}
+            />
+          </>
+        )}
         <div className="field">
           <span>Logo</span>
           {settings.headerLogo ? (
@@ -56,6 +139,33 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
             <input type="file" accept="image/*" onChange={onLogoPicked} />
           )}
         </div>
+        {settings.headerLogo && (
+          <>
+            <div className="field">
+              <span>Position du logo</span>
+              <AlignPicker
+                value={settings.headerLogoAlign}
+                onChange={(v) => set('headerLogoAlign', v)}
+              />
+            </div>
+            <label className="field">
+              <span>Taille du logo : {settings.headerLogoSize} mm</span>
+              <input
+                type="range"
+                min={5}
+                max={14}
+                step={0.5}
+                value={settings.headerLogoSize}
+                onChange={(e) => set('headerLogoSize', Number(e.target.value))}
+              />
+            </label>
+            <OffsetSlider
+              label="Hauteur du logo"
+              value={settings.headerLogoOffsetY}
+              onChange={(v) => set('headerLogoOffsetY', v)}
+            />
+          </>
+        )}
         <label className="check">
           <input
             type="checkbox"
@@ -77,13 +187,40 @@ export function SettingsPanel({ settings, onChange, onClose }: Props) {
             onChange={(e) => set('footerText', e.target.value)}
           />
         </label>
+        {settings.footerText && (
+          <>
+            <div className="field">
+              <span>Position du texte</span>
+              <AlignPicker
+                value={settings.footerTextAlign}
+                onChange={(v) => set('footerTextAlign', v)}
+              />
+            </div>
+            <label className="field">
+              <span>Taille du texte : {settings.footerTextSize} pt</span>
+              <input
+                type="range"
+                min={7}
+                max={13}
+                step={0.5}
+                value={settings.footerTextSize}
+                onChange={(e) => set('footerTextSize', Number(e.target.value))}
+              />
+            </label>
+            <OffsetSlider
+              label="Hauteur du texte"
+              value={settings.footerTextOffsetY}
+              onChange={(v) => set('footerTextOffsetY', v)}
+            />
+          </>
+        )}
         <label className="check">
           <input
             type="checkbox"
             checked={settings.pageNumbers}
             onChange={(e) => set('pageNumbers', e.target.checked)}
           />
-          <span>Numéroter les pages (n / total)</span>
+          <span>Numéroter les pages (n / total, à droite)</span>
         </label>
       </section>
 
