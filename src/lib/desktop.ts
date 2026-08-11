@@ -7,6 +7,8 @@ export interface ProjectInfo {
   title: string | null
   words: number
   updatedAt: number
+  /** Début du document (markdown brut), rendu en vignette sur la carte. */
+  excerpt?: string
 }
 
 /** Projet chargé (contenu + réglages). */
@@ -17,6 +19,43 @@ export interface ProjectData {
   settings: PageSettings | null
   /** Projet jetable, stocké dans le dossier temp de Windows (jamais listé). */
   temporary?: boolean
+}
+
+/** Données d'un classeur tableur : une entrée par feuille (format x-data-spreadsheet). */
+export type SheetWorkbook = unknown[]
+
+/** Projet tableur tel que listé sur la page d'accueil. */
+export interface SheetProjectInfo {
+  name: string
+  path: string
+  /** Nombre de feuilles du classeur. */
+  sheets: number
+  /** Nombre de cellules remplies (toutes feuilles). */
+  cells: number
+  updatedAt: number
+  /** Coin haut-gauche de la première feuille (lignes × colonnes), pour la vignette. */
+  preview?: string[][]
+}
+
+/** Projet tableur chargé. */
+export interface SheetProjectData {
+  name: string
+  path: string
+  data: SheetWorkbook
+  /** Projet jetable, stocké dans le dossier temp de Windows (jamais listé). */
+  temporary?: boolean
+}
+
+/**
+ * Fichier ouvert via « Ouvrir avec » de Windows (WStudio application par
+ * défaut) : chemin + contenu, lu par le processus principal — le renderer
+ * n'a pas accès au disque.
+ */
+export interface OpenWithFile {
+  path: string
+  name: string
+  /** Buffer côté main, reçu en Uint8Array côté renderer. */
+  bytes: Uint8Array
 }
 
 /** Famille d'API d'un profil de modèle IA. */
@@ -86,12 +125,23 @@ export interface RapportBridge {
   saveProjectNow(opts: { path: string; markdown: string; settings: PageSettings }): void
   revealProject(dir: string): Promise<void>
   deleteProject(dir: string): Promise<boolean>
+  listSheetProjects(): Promise<SheetProjectInfo[]>
+  createSheetProject(opts: {
+    name: string
+    data?: SheetWorkbook
+    temporary?: boolean
+  }): Promise<SheetProjectData>
+  openSheetProject(dir: string): Promise<SheetProjectData | null>
+  saveSheetProject(opts: { path: string; data: SheetWorkbook }): Promise<boolean>
+  saveSheetProjectNow(opts: { path: string; data: SheetWorkbook }): void
   saveAsset(opts: { projectPath: string; dataUrl: string }): Promise<string | null>
   extractDataImages(opts: {
     path: string
     markdown: string
   }): Promise<{ markdown: string; count: number }>
   writePreviewFile(opts: { html: string; slot: 'A' | 'B' }): Promise<string>
+  openWithConsume(): Promise<OpenWithFile | null>
+  onOpenWith(callback: (file: OpenWithFile) => void): () => void
   openMarkdown(): Promise<{ path: string; content: string } | null>
   saveMarkdown(opts: {
     path: string | null

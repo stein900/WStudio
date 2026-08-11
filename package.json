@@ -23,6 +23,14 @@
       "dist/**",
       "electron/**"
     ],
+    "fileAssociations": [
+      {
+        "ext": "pdf",
+        "name": "Document PDF",
+        "description": "Document PDF",
+        "role": "Editor"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
@@ -67,7 +75,9 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tiptap-markdown": "^0.9.0",
-    "tiptap-pagination-plus": "^3.1.0"
+    "tiptap-pagination-plus": "^3.1.0",
+    "x-data-spreadsheet": "^1.1.9",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
@@ -77,6 +87,7 @@
     "concurrently": "^10.0.4",
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3",
+    "less": "^4.8.1",
     "oxlint": "^1.75.0",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.2",

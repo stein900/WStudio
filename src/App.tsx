@@ -14,7 +14,14 @@ import { Icon } from './components/Icons'
 import { PaintView } from './paint/PaintView'
 import { PdfEditView } from './pdfedit/PdfEditView'
 import { PdfToolsView } from './pdftools/PdfToolsView'
-import { desktop, isDesktop, type ProjectData } from './lib/desktop'
+import { SheetsView } from './sheets/SheetsView'
+import {
+  desktop,
+  isDesktop,
+  type OpenWithFile,
+  type ProjectData,
+  type SheetProjectData,
+} from './lib/desktop'
 import logoUrl from './assets/wstudio-logo.png'
 import { exportToPdf, type PagedAnchors } from './lib/exportPdf'
 import { DEFAULT_DOC } from './lib/defaultDoc'
@@ -80,9 +87,13 @@ export default function App() {
     path: string
     temporary?: boolean
   } | null>(null)
-  const [view, setView] = useState<'home' | 'editor' | 'paint' | 'pdfedit' | 'pdftools'>(
-    isDesktop ? 'home' : 'editor'
-  )
+  const [view, setView] = useState<
+    'home' | 'editor' | 'paint' | 'pdfedit' | 'pdftools' | 'sheets'
+  >(isDesktop ? 'home' : 'editor')
+  // Projet tableur courant (le module Tableur a ses propres projets)
+  const [sheetProject, setSheetProject] = useState<SheetProjectData | null>(null)
+  // Section de l'accueil à la réouverture : celle du module qu'on quitte
+  const [homeSection, setHomeSection] = useState<'docs' | 'sheets'>('docs')
   const [createSignal, setCreateSignal] = useState(0)
 
   // Thème clair/sombre : appliqué sur <html> (les feuilles de style s'y
@@ -171,6 +182,29 @@ export default function App() {
     window.addEventListener('beforeunload', flush)
     return () => window.removeEventListener('beforeunload', flush)
   }, [])
+
+  // « Ouvrir avec » de Windows : un PDF double-cliqué (WStudio application
+  // par défaut) arrive du processus principal — au lancement (consommé une
+  // fois le renderer monté) ou pendant que l'app tourne (second-instance).
+  const [externalPdf, setExternalPdf] = useState<{ name: string; bytes: ArrayBuffer } | null>(null)
+  const [externalPdfKey, setExternalPdfKey] = useState(0)
+  const openExternalFile = useCallback((file: OpenWithFile) => {
+    if (!/\.pdf$/i.test(file.name)) return
+    flushRef.current() // ne rien perdre si un projet est ouvert dans l'éditeur
+    const bytes = file.bytes.buffer.slice(
+      file.bytes.byteOffset,
+      file.bytes.byteOffset + file.bytes.byteLength
+    ) as ArrayBuffer
+    setExternalPdf({ name: file.name, bytes })
+    setExternalPdfKey((k) => k + 1) // remonte l'éditeur PDF pour chaque fichier
+    setView('pdfedit')
+  }, [])
+  useEffect(() => {
+    const d = desktop
+    if (!d) return
+    void d.openWithConsume().then((f) => f && openExternalFile(f))
+    return d.onOpenWith(openExternalFile)
+  }, [openExternalFile])
 
   const openProjectData = useCallback(async (p: ProjectData) => {
     // Migration transparente : les images base64 (collages Google Docs…)
@@ -263,6 +297,7 @@ export default function App() {
   const goHome = useCallback(() => {
     flushRef.current() // ne rien perdre en quittant l'éditeur
     setProject(null)
+    setHomeSection('docs')
     setView('home')
   }, [])
 
@@ -426,11 +461,17 @@ export default function App() {
       document.title = 'Outils PDF — WStudio'
       return
     }
+    if (view === 'sheets') {
+      document.title = sheetProject
+        ? `${sheetProject.name} — Tableur — WStudio`
+        : 'Tableur — WStudio'
+      return
+    }
     const name =
       project?.name ??
       (filePath ? filePath.replace(/^.*[\\/]/, '') : documentTitle(markdown))
     document.title = `${name} — WStudio`
-  }, [filePath, markdown, project, view])
+  }, [filePath, markdown, project, sheetProject, view])
 
   const words = useMemo(
     () => (markdown.trim() ? markdown.trim().split(/\s+/).length : 0),
@@ -442,11 +483,34 @@ export default function App() {
   }
 
   if (view === 'pdfedit') {
-    return <PdfEditView onClose={() => setView('home')} />
+    return (
+      <PdfEditView
+        key={externalPdfKey}
+        initialFile={externalPdf}
+        onClose={() => {
+          setExternalPdf(null)
+          setView('home')
+        }}
+      />
+    )
   }
 
   if (view === 'pdftools') {
     return <PdfToolsView onClose={() => setView('home')} />
+  }
+
+  if (view === 'sheets' && sheetProject) {
+    return (
+      <SheetsView
+        key={sheetProject.path}
+        project={sheetProject}
+        onClose={() => {
+          setSheetProject(null)
+          setHomeSection('sheets')
+          setView('home')
+        }}
+      />
+    )
   }
 
   if (isDesktop && view === 'home') {
@@ -454,11 +518,16 @@ export default function App() {
       <Home
         onOpenProject={openProjectData}
         createSignal={createSignal}
+        initialSection={homeSection}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenPaint={() => setView('paint')}
         onOpenPdfEdit={() => setView('pdfedit')}
         onOpenPdfTools={() => setView('pdftools')}
+        onOpenSheetProject={(p) => {
+          setSheetProject(p)
+          setView('sheets')
+        }}
       />
     )
   }
@@ -726,8 +795,8 @@ export default function App() {
         )}
         <span className="status-hint">
           {mode === 'markdown'
-            ? 'Mode Markdown — aperçu en direct à droite'
-            : 'Mode Document — tout est converti en Markdown en arrière-plan'}
+            ? 'Writer Studio - © STEIN IND. All Rights Reserved'
+            : 'Writer Studio - © STEIN IND. All Rights Reserved'}
         </span>
         <span>
           <span className="status-dot" />

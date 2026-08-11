@@ -12,6 +12,14 @@ contextBridge.exposeInMainWorld('rapportApp', {
   revealProject: (dir) => ipcRenderer.invoke('projects:reveal', dir),
   deleteProject: (dir) => ipcRenderer.invoke('projects:delete', dir),
 
+  // --- Projets tableur (Documents\WStudio\<Nom>\classeur.json) ---
+  listSheetProjects: () => ipcRenderer.invoke('sheets:list'),
+  createSheetProject: (opts) => ipcRenderer.invoke('sheets:create', opts),
+  openSheetProject: (dir) => ipcRenderer.invoke('sheets:open', dir),
+  saveSheetProject: (opts) => ipcRenderer.invoke('sheets:save', opts),
+  /** Sauvegarde « fire-and-forget » utilisée à la fermeture de la fenêtre. */
+  saveSheetProjectNow: (opts) => ipcRenderer.send('sheets:save-now', opts),
+
   /** Enregistre une image (data URL) dans <projet>\assets\, renvoie son chemin relatif. */
   saveAsset: (opts) => ipcRenderer.invoke('assets:save', opts),
 
@@ -20,6 +28,16 @@ contextBridge.exposeInMainWorld('rapportApp', {
 
   /** Écrit le HTML d'aperçu dans un fichier temporaire, renvoie son URL file://. */
   writePreviewFile: (opts) => ipcRenderer.invoke('preview:write', opts),
+
+  /** Fichier passé en ligne de commande au lancement (« Ouvrir avec ») ; null sinon. */
+  openWithConsume: () => ipcRenderer.invoke('openwith:consume'),
+
+  /** Abonne le renderer aux fichiers double-cliqués pendant que l'app tourne. */
+  onOpenWith: (callback) => {
+    const listener = (_event, file) => callback(file)
+    ipcRenderer.on('openwith', listener)
+    return () => ipcRenderer.removeListener('openwith', listener)
+  },
 
   /** Boîte de dialogue native d'ouverture ; null si annulée. */
   openMarkdown: () => ipcRenderer.invoke('md:open'),

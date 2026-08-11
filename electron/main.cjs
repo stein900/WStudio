@@ -19,12 +19,57 @@ const projectsRoot = () => path.join(app.getPath('documents'), 'WStudio')
 const tempRoot = () => path.join(app.getPath('temp'), 'WStudio Temporaire')
 const PROJECT_MD = 'rapport.md'
 const PROJECT_META = 'projet.json'
+// Projets tableur : mêmes dossiers, mais un classeur.json à la place du
+// rapport.md — chaque listing ignore l'autre type.
+const SHEET_FILE = 'classeur.json'
 
 const DEV_URL = 'http://127.0.0.1:5173'
 const isDev = !app.isPackaged
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null
+
+// ------------------------------------------------------------------
+// « Ouvrir avec » de Windows : quand WStudio est l'application par défaut
+// des PDF, le chemin du fichier double-cliqué arrive en argument de ligne
+// de commande (au lancement, ou via second-instance si l'app tourne déjà).
+// ------------------------------------------------------------------
+const OPENABLE = /\.pdf$/i
+
+/** Extrait du argv le premier fichier ouvrable existant (chemin absolu). */
+function fileFromArgv(argv) {
+  for (const raw of argv.slice(1)) {
+    if (!raw || raw.startsWith('-') || !OPENABLE.test(raw)) continue
+    try {
+      const abs = path.resolve(raw)
+      if (fs.existsSync(abs)) return abs
+    } catch {
+      /* argument illisible : ignoré */
+    }
+  }
+  return null
+}
+
+// Fichier du lancement, consommé par le renderer une fois prêt
+let pendingOpenFile = fileFromArgv(process.argv)
+
+async function readOpenFile(filePath) {
+  const bytes = await fs.promises.readFile(filePath)
+  return { path: filePath, name: path.basename(filePath), bytes }
+}
+
+/** Pousse le fichier au renderer (double-clic alors que l'app est ouverte). */
+async function sendOpenFile(filePath) {
+  if (!mainWindow) return
+  try {
+    mainWindow.webContents.send('openwith', await readOpenFile(filePath))
+  } catch (err) {
+    dialog.showErrorBox(
+      'Ouverture du fichier',
+      `Impossible d'ouvrir « ${filePath} » : ${err.message}`
+    )
+  }
+}
 
 // ------------------------------------------------------------------
 // Mémorisation de la géométrie de fenêtre entre les sessions
@@ -263,6 +308,8 @@ ipcMain.handle('projects:list', async () => {
         title: m ? m[1].replace(/[*_`#]/g, '').trim() : null,
         words: content.trim() ? content.trim().split(/\s+/).length : 0,
         updatedAt: stat.mtimeMs,
+        // Début du document, rendu en vignette sur la carte de l'accueil
+        excerpt: content.slice(0, 1200),
       })
     } catch {
       /* dossier sans rapport.md : ignoré */
@@ -330,6 +377,98 @@ ipcMain.handle('projects:delete', async (_e, dir) => {
 })
 
 // ------------------------------------------------------------------
+// IPC : projets tableur (Documents\WStudio\<Nom>\ — classeur.json)
+// ------------------------------------------------------------------
+async function writeSheetProject(dir, data) {
+  await fs.promises.mkdir(dir, { recursive: true })
+  await fs.promises.writeFile(path.join(dir, SHEET_FILE), JSON.stringify(data), 'utf8')
+  await fs.promises.writeFile(
+    path.join(dir, PROJECT_META),
+    JSON.stringify({ type: 'sheet', updatedAt: new Date().toISOString() }, null, 2),
+    'utf8'
+  )
+}
+
+ipcMain.handle('sheets:list', async () => {
+  const root = projectsRoot()
+  await fs.promises.mkdir(root, { recursive: true })
+  const entries = await fs.promises.readdir(root, { withFileTypes: true })
+  const projects = []
+  for (const e of entries) {
+    if (!e.isDirectory()) continue
+    const dir = path.join(root, e.name)
+    try {
+      const file = path.join(dir, SHEET_FILE)
+      const stat = await fs.promises.stat(file)
+      let sheets = 0
+      let cells = 0
+      // Coin haut-gauche de la première feuille, pour la vignette de la carte
+      const preview = []
+      try {
+        const data = JSON.parse(await fs.promises.readFile(file, 'utf8'))
+        if (Array.isArray(data)) {
+          sheets = data.length
+          for (const s of data) {
+            for (const k of Object.keys(s?.rows ?? {})) {
+              if (!/^\d+$/.test(k)) continue
+              for (const c of Object.values(s.rows[k]?.cells ?? {})) {
+                if (c && c.text != null && c.text !== '') cells++
+              }
+            }
+          }
+          const first = data[0]?.rows ?? {}
+          for (let r = 0; r < 10; r++) {
+            const row = []
+            for (let c = 0; c < 6; c++) {
+              const text = first[r]?.cells?.[c]?.text
+              row.push(text != null ? String(text).slice(0, 40) : '')
+            }
+            preview.push(row)
+          }
+        }
+      } catch {
+        /* classeur illisible : listé quand même, compteurs à zéro */
+      }
+      projects.push({ name: e.name, path: dir, sheets, cells, preview, updatedAt: stat.mtimeMs })
+    } catch {
+      /* dossier sans classeur.json : projet document, ignoré ici */
+    }
+  }
+  projects.sort((a, b) => b.updatedAt - a.updatedAt)
+  return projects
+})
+
+ipcMain.handle('sheets:create', async (_e, { name, data, temporary }) => {
+  const root = temporary ? tempRoot() : projectsRoot()
+  const base = sanitizeProjectName(name)
+  let dir = path.join(root, base)
+  for (let i = 2; fs.existsSync(dir); i++) dir = path.join(root, `${base} (${i})`)
+  const content = Array.isArray(data) && data.length > 0 ? data : [{ name: 'Feuille1', rows: {} }]
+  await writeSheetProject(dir, content)
+  return { name: path.basename(dir), path: dir, data: content, temporary: Boolean(temporary) }
+})
+
+ipcMain.handle('sheets:open', async (_e, dir) => {
+  try {
+    const data = JSON.parse(await fs.promises.readFile(path.join(dir, SHEET_FILE), 'utf8'))
+    return { name: path.basename(dir), path: dir, data }
+  } catch (err) {
+    dialog.showErrorBox('Ouverture du tableur', `Impossible d'ouvrir le tableur : ${err.message}`)
+    return null
+  }
+})
+
+const saveSheetProject = async (_e, { path: dir, data }) => {
+  await writeSheetProject(dir, data)
+  return true
+}
+ipcMain.handle('sheets:save', saveSheetProject)
+// variante « lâcher-prise » utilisée à la fermeture de la fenêtre
+ipcMain.on('sheets:save-now', (e, opts) => {
+  saveSheetProject(e, opts).catch(() => {})
+})
+
+// ------------------------------------------------------------------
 // Images de projet : fichiers dans <projet>\assets\, nom stable par
 // empreinte du contenu (collages répétés → même fichier, zéro doublon).
 // ------------------------------------------------------------------
@@ -380,6 +519,22 @@ ipcMain.handle('preview:write', async (_e, { html, slot }) => {
   const file = path.join(app.getPath('temp'), `wstudio-preview-${slot === 'B' ? 'B' : 'A'}.html`)
   await fs.promises.writeFile(file, html, 'utf8')
   return require('url').pathToFileURL(file).toString()
+})
+
+// ------------------------------------------------------------------
+// IPC : « Ouvrir avec » — le renderer réclame, une fois monté, le fichier
+// passé en argument au lancement (contenu inclus : il ne peut pas lire le
+// disque lui-même).
+// ------------------------------------------------------------------
+ipcMain.handle('openwith:consume', async () => {
+  const filePath = pendingOpenFile
+  pendingOpenFile = null
+  if (!filePath) return null
+  try {
+    return await readOpenFile(filePath)
+  } catch {
+    return null
+  }
 })
 
 // ------------------------------------------------------------------
@@ -504,11 +659,14 @@ ipcMain.handle('pdf:export-wc', async (_e, { webContentsId, suggestedName }) => 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
     }
+    // Double-clic sur un PDF pendant que l'application tourne déjà
+    const file = fileFromArgv(argv)
+    if (file) void sendOpenFile(file)
   })
 
   app.whenReady().then(() => {
