@@ -80,6 +80,13 @@ ${headerFooterCss(s)}
 
 body { margin: 0; text-rendering: optimizeLegibility; }
 
+/* Largeur de composition AVANT pagination = largeur utile A4, quelle que soit
+   la fenêtre hôte (la fenêtre cachée d'export fait 800px par défaut) : les
+   mesures de débordement des équations sont ainsi identiques dans tous les
+   modes. Après pagination, la zone de contenu fait exactement cette largeur —
+   la règle y est neutre. */
+main.report { width: ${210 - 2 * m.side}mm; margin: 0 auto; }
+
 /* Typographie partagée avec l'éditeur Document (même source = même pagination) */
 ${reportTypographyCss(s, '')}
 
@@ -148,7 +155,6 @@ export async function buildPagedHtml(
   // HTML généré est chargé depuis un fichier temporaire hors du projet)
   const source = projectPath ? resolveAssetsToFileUrls(markdown, projectPath) : markdown
   const contentHtml = await renderForExport(source, { forceToc: settings.autoToc })
-  const m = pageMarginsMm()
 
   const headerHtml = hasHeader(settings)
     ? `<div class="page-header">${buildHeaderHtml(settings)}</div>`
@@ -276,12 +282,20 @@ export async function buildPagedHtml(
           window.__wsBlockCount = rootEl.children.length;
         }
         // Équations plus larges que la zone de contenu : réduction
-        // homothétique AVANT pagination (zoom affecte la mise en page),
-        // identique dans tous les modes → parité aperçu/PDF conservée.
-        var limit = ${210 - 2 * m.side} * (96 / 25.4) - 4;
+        // homothétique AVANT pagination, identique dans tous les modes →
+        // parité aperçu/PDF conservée. Seul un débordement RÉEL déclenche la
+        // réduction (.katex est un bloc : scrollWidth ≥ largeur du conteneur,
+        // le comparer à une constante réduirait toutes les équations). La
+        // réduction passe par font-size (KaTeX est entièrement en em → vrai
+        // re-layout), jamais par zoom : zoom + printToPDF arrondit les
+        // hauteurs internes des fractions/matrices → chevauchements.
         document.querySelectorAll('.katex-display > .katex').forEach(function (k) {
-          if (k.scrollWidth > limit) {
-            k.style.zoom = String(Math.max(0.45, limit / k.scrollWidth));
+          var full = parseFloat(getComputedStyle(k).fontSize);
+          var size = full;
+          for (var pass = 0; pass < 3 && k.scrollWidth > k.clientWidth + 1; pass++) {
+            size = Math.max(0.45 * full, size * (k.clientWidth - 4) / k.scrollWidth);
+            k.style.fontSize = size.toFixed(2) + 'px';
+            if (size <= 0.45 * full) break;
           }
         });
         window.PagedPolyfill.preview();

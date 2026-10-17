@@ -18,6 +18,8 @@ import './pdfedit.css'
 
 interface Props {
   onClose: () => void
+  /** PDF fourni par « Ouvrir avec » de Windows : chargé dès le montage. */
+  initialFile?: { name: string; bytes: ArrayBuffer } | null
 }
 
 const ZOOMS = [0.5, 0.65, 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2, 2.5]
@@ -72,7 +74,7 @@ async function loadImageFile(f: File): Promise<Omit<ImageAnnot, 'id' | 'pageInde
   }
 }
 
-export function PdfEditView({ onClose }: Props) {
+export function PdfEditView({ onClose, initialFile }: Props) {
   const [file, setFile] = useState<{ name: string; bytes: ArrayBuffer } | null>(null)
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   const [baseSizes, setBaseSizes] = useState<{ width: number; height: number }[]>([])
@@ -102,11 +104,10 @@ export function PdfEditView({ onClose }: Props) {
   const totalChanges = edits.size + annots.size
 
   // ---------- Ouverture ----------
-  const openFile = useCallback(async (f: File) => {
+  const openBytes = useCallback(async (name: string, bytes: ArrayBuffer) => {
     setLoading(true)
     setError(null)
     try {
-      const bytes = await f.arrayBuffer()
       const pdf = await loadPdf(bytes)
       const sizes: { width: number; height: number }[] = []
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -114,7 +115,7 @@ export function PdfEditView({ onClose }: Props) {
         sizes.push({ width: vp.width, height: vp.height })
       }
       slotsRef.current.clear()
-      setFile({ name: f.name, bytes })
+      setFile({ name, bytes })
       setDoc(pdf)
       setBaseSizes(sizes)
       setZoom(1)
@@ -131,6 +132,23 @@ export function PdfEditView({ onClose }: Props) {
       setLoading(false)
     }
   }, [])
+
+  const openFile = useCallback(
+    async (f: File) => {
+      try {
+        await openBytes(f.name, await f.arrayBuffer())
+      } catch {
+        setError('Impossible d’ouvrir ce fichier : est-ce bien un PDF valide (non protégé) ?')
+      }
+    },
+    [openBytes]
+  )
+
+  // Fichier « Ouvrir avec » : chargé à l'ouverture du module (le composant
+  // est remonté — via key — pour chaque nouveau fichier externe).
+  useEffect(() => {
+    if (initialFile) void openBytes(initialFile.name, initialFile.bytes)
+  }, [initialFile, openBytes])
 
   const onFilePicked = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
